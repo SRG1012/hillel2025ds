@@ -1,0 +1,2 @@
+-Git basics
+-Python basics
