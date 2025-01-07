@@ -3,7 +3,7 @@ Student:
     marks: list[int]
 
 
-COMMANDS = ("quit", "show", "retrieve", "add")
+COMMANDS = ("quit", "show", "retrieve", "add", "search_id")
 
 # Simulated database
 students = [
