@@ -1,33 +1,54 @@
-
-import json
+import csv
 from pathlib import Path
 
 # ==================================================
 # Simulated storage
 # ==================================================
 files_dir = Path(__name__).absolute().parent / "files"
-storage_file = "students.json"
-
+storage_file = "students.csv"
 
 LAST_ID_CONTEXT = 2
 
 
 class StudentsStorage:
     def __init__(self) -> None:
-        self.students = self.read_json(storage_file)
+        self.students = self.csv_to_dict(storage_file)
 
     @staticmethod
-    def read_json(filename: str) -> dict:
-        with open(files_dir / filename) as file:
-            return json.load(file)
+    def csv_to_dict(filename: str) -> dict:
+
+        students = {}
+        filepath = files_dir / filename
+        if filepath.exists():
+            with open(filepath, mode="r", newline="") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    students[row["id"]] = {
+                        "name": row["name"],
+                        "marks": list(map(int, row["marks"].split(","))),
+                    }
+        return students
 
     @staticmethod
-    def write_json(filename: str, data: dict) -> None:
-        with open(files_dir / filename, mode="w") as file:
-            return json.dump(data, file)
+    def dict_to_csv(filename: str, data: dict) -> None:
+
+        filepath = files_dir / filename
+        with open(filepath, mode="w", newline="") as file:
+            fieldnames = ["id", "name", "marks"]
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()
+            for id_, student in data.items():
+                writer.writerow(
+                    {
+                        "id": id_,
+                        "name": student["name"],
+                        "marks": ",".join(map(str, student["marks"])),
+                    }
+                )
 
     def flush(self) -> None:
-        self.write_json(storage_file, self.students)
+
+        self.dict_to_csv(storage_file, self.students)
 
 
 def represent_students():
@@ -35,9 +56,7 @@ def represent_students():
         print(f"[{id_}] {student['name']}, marks: {student['marks']}")
 
 
-# ==================================================
-# CRUD (Create Read Update Delete)
-# ==================================================
+
 def add_student(student: dict) -> dict | None:
     global LAST_ID_CONTEXT
     storage = StudentsStorage()
@@ -66,7 +85,8 @@ def delete_student(id_: int):
         del storage.students[str(id_)]
         print(f"Student with id '{id_}' is deleted")
     else:
-        print(f"There is student '{id_}' in the storage")
+        print(f"There is no student with id '{id_}' in the storage")
+    storage.flush()
 
 
 def update_student(id_: int, payload: dict) -> dict:
@@ -81,21 +101,8 @@ def student_details(student: dict) -> None:
     print(f"Detailed info: [{student['name']}]...")
 
 
-# ==================================================
-# Handle user input
-# ==================================================
+
 def parse(data: str) -> tuple[str, list[int]]:
-    """Return student name and marks.
-
-    user input template:
-    'John Doe;4,5,4,5,4,5'
-
-
-    def foo(*args, **kwargs):
-        pass
-
-    """
-
     template = "John Doe;4,5,4,5,4,5"
 
     items = data.split(";")
@@ -103,28 +110,17 @@ def parse(data: str) -> tuple[str, list[int]]:
     if len(items) != 2:
         raise Exception(f"Incorrect data. Template: {template}")
 
-    # items == ["John Doe", "4,5...."]
     name, raw_marks = items
 
     try:
         marks = [int(item) for item in raw_marks.split(",")]
     except ValueError as error:
-        print(error)
         raise Exception(f"Marks are incorrect. Template: {template}") from error
 
     return name, marks
 
 
 def ask_student_payload():
-    """
-    Input template:
-        'John Doe;4,5,4,5,4,5'
-
-    Expected:
-        John Doe:       str
-        4,5,4,5,4,5:    list[int]
-    """
-
     prompt = "Enter student's payload using next template:\n'John Doe;4,5,4,5,4,5': "
 
     if not (payload := parse(input(prompt))):
@@ -150,7 +146,7 @@ def handle_management_command(command: str):
             if student := search_student(id_):
                 student_details(student)
             else:
-                print(f"There is not student with id: '{id_}'")
+                print(f"There is no student with id: '{id_}'")
 
     elif command == "remove":
         delete_id = input("Enter student's id to remove: ")
@@ -176,7 +172,7 @@ def handle_management_command(command: str):
                 if student := search_student(id_):
                     student_details(student)
                 else:
-                    print(f"❌ Can not change user with data {data}")
+                    print(f"❌ Cannot change user with data {data}")
 
     elif command == "add":
         data = ask_student_payload()
@@ -192,8 +188,6 @@ def handle_management_command(command: str):
 
 
 def handle_user_input():
-    """This is an application entrypoint."""
-
     SYSTEM_COMMANDS = ("quit", "help")
     MANAGEMENT_COMMANDS = ("show", "add", "retrieve", "remove", "change")
     AVAILABLE_COMMANDS = SYSTEM_COMMANDS + MANAGEMENT_COMMANDS
@@ -220,3 +214,4 @@ def handle_user_input():
 
 
 handle_user_input()
+
