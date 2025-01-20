@@ -1,59 +1,58 @@
+import argparse
 import asyncio
-from functools import partial
 import time
 import random
+import httpx
 import requests
 
-
 BASE_URL = "https://pokeapi.co/api/v2/pokemon/{pokemon_id}"
-
-
-def http_request(url: str) -> str:
-    print(f"requesting {url}")
-    response: dict = requests.get(url).json()
-    return response["name"]
-
-
-async def ahttp_request(url: str) -> str:
-    print(f"requesting {url}")
-    response: requests.Response = await asyncio.to_thread(requests.patch, url)
-    return response.json()["name"]
 
 
 def get_urls(n: int) -> list[str]:
     return [BASE_URL.format(pokemon_id=random.randint(1, 500)) for _ in range(n)]
 
-
+# Синхронна функція для отримання даних за допомогою requests
 def sync_pokemons():
-    urls: list[str] = get_urls(n=50)
-    results = [http_request(url) for url in urls]
-
+    urls = get_urls(n=50)
+    results = []
+    for url in urls:
+        print(f"Виконується запит {url} за допомогою requests")
+        response = requests.get(url)
+        response.raise_for_status()
+        results.append(response.json()["name"])
     return results
 
-
+# Асинхронна функція для отримання даних за допомогою httpx
 async def async_pokemons():
-    urls: list[str] = get_urls(n=50)
-    tasks = [ahttp_request(url) for url in urls]
-    results = await asyncio.gather(*tasks)
-
+    urls = get_urls(n=50)
+    async with httpx.AsyncClient() as client:
+        tasks = [client.get(url) for url in urls]
+        responses = await asyncio.gather(*tasks)
+        results = [response.json()["name"] for response in responses]
     return results
-
 
 def main():
+    parser = argparse.ArgumentParser(description="Отримання імен Покемонів за допомогою requests або httpx.")
+    parser.add_argument(
+        "library",
+        choices=["requests", "httpx"],
+        help="Вкажіть бібліотеку для отримання даних.",
+    )
+
+    args = parser.parse_args()
 
     start = time.perf_counter()
-    data = asyncio.run(async_pokemons())
-    # sync_data = sync_pokemons()
+
+    if args.library == "httpx":
+        data = asyncio.run(async_pokemons())
+    elif args.library == "requests":
+        data = sync_pokemons()
+
     end = time.perf_counter()
 
-    # print(sync_data)
-    # print(f"the len of the collection: {len(sync_data)}")
-    # print(f"execution time: {end - start}")
-
     print(data)
-    print(f"the len of the collection: {len(data)}")
-    print(f"execution time: {end - start}")
-
+    print(f"Довжина колекції: {len(data)}")
+    print(f"Час виконання: {end - start:.2f} секунд")
 
 if __name__ == "__main__":
     raise SystemExit(main())
